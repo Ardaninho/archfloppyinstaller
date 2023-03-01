@@ -1,0 +1,59 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Basic variables
+FLDSKCOUNT=364
+FILE=/tmp/archlinux.sfs
+# Welcome message
+echo "Ardaninho's Arch Installer using floppy disks"
+echo "archfloppy-install Copyright (C) 2023 Ardaninho"
+echo "This program comes with absolutely no warranty."
+echo "This is free software, and you are welcome to redistribute it under certain conditions." && echo
+printf "This program is designed for use in the Arch Linux Live ISO. " && read -p "Press <ENTER> to continue setup."
+# Disk partitioner
+echo "Please choose a TTY/CLI disk partitioner. (fdisk, cfdisk, parted)" && read partitioner
+lsblk
+echo "Please choose your drive." && read drive
+echo "I will open partitioner '$partitioner' on drive '$drive' in 5 seconds."
+sleep 5
+$partitioner $drive || exit 1
+lsblk
+echo "Select the root partition." && read -r rootpart
+if [ -d /sys/firmware/efi ]; then
+	echo "Select the ESP partition." && read esppart
+fi
+echo "ARE YOU SURE YOU WANT TO FORMAT THE DISK(S)? (y/N)" & read frmtdskvrfy
+case $frmtdskvrfy in
+	y|Y)
+		mkfs.ext4 $rootpart
+		if [ -d /sys/firmware/efi ]; then
+			mkfs.fat -F 32 $esppart
+		fi;;
+	n|N)
+		echo "Aborting."; exit 1;;
+esac
+mount $rootpart /mnt
+if [ -d /sys/firmware/efi ]
+	mkdir -p /mnt/boot
+	mount $esppart /mnt/boot
+fi
+# Main installer
+touch $FILE
+for ((SELDISK = 1; SELDISK < FLDSKCOUNT; SELDISK++)); do
+	read -p "Insert disk $SELDISK into /dev/fd0 (floppy drive 0) and press <ENTER> to continue."
+	dd if=/dev/fd0 >> $FILE
+	echo "Written 1440KB to disk image."
+done
+echo "Writing to disk image is complete. Extracting image..."
+unsquashfs -f -d /mnt $FILE
+echo "Checking for updates and installing them..."
+arch-chroot /mnt pacman -Syu --noconfirm
+echo "Installing kernel and bootloader..."
+arch-chroot /mnt pacman -S linux linux-firmware grub --noconfirm
+if [ -d /sys/firmware/efi ]; then
+	arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot
+else
+	arch-chroot /mnt grub-install
+fi
+echo "Installation of Arch Linux in floppies is done!" && echo && echo "To login to your new system, the account is root with password root. Enjoy!"
+echo "Exiting."
+exit 1
