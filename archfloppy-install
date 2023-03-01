@@ -32,7 +32,7 @@ case $frmtdskvrfy in
 		echo "Aborting."; exit 1;;
 esac
 mount $rootpart /mnt
-if [ -d /sys/firmware/efi ]
+if [ -d /sys/firmware/efi ];
 	mkdir -p /mnt/boot
 	mount $esppart /mnt/boot
 fi
